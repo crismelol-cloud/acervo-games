@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meu Acervo de Games</title>
+<script src="xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f2ee; --panel:#ffffff; --panel2:#f6f4f0; --line:#e3ded5;
+    --ink:#23262e; --dim:#6c7180; --dim2:#9aa0ad;
+    --accent:#e0356f; --accent2:#0fa8a0; --gold:#d99100;
+    --r:14px;
+    --fdisplay:'Verdana Bold', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased; line-height:1.5;
+    min-height:100vh;
+  }
+  body::before{
+    content:''; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.5;
+    background:
+      radial-gradient(900px 500px at 80% -10%, rgba(224,53,111,.07), transparent 60%),
+      radial-gradient(700px 500px at -10% 20%, rgba(15,168,160,.06), transparent 55%);
+  }
+  .wrap{position:relative; z-index:1; max-width:1180px; margin:0 auto; padding:0 16px 80px}
+
+  header{padding:34px 0 18px}
+  .eyebrow{font-size:11px; letter-spacing:.32em; text-transform:uppercase; color:var(--accent2); font-weight:700; margin-bottom:10px}
+  h1{
+    font-family:var(--fdisplay); font-weight:800; line-height:.95;
+    font-size:clamp(34px,7vw,62px); letter-spacing:-.02em;
+  }
+  h1 .px{color:var(--accent)}
+  .sub{color:var(--dim); margin-top:10px; font-size:15px; max-width:60ch}
+
+  .totals{display:flex; flex-wrap:wrap; gap:10px; margin-top:22px}
+  .total-chip{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--r);
+    padding:12px 16px; min-width:96px; box-shadow:0 1px 2px rgba(40,40,60,.04);
+  }
+  .total-chip .num{font-family:var(--fdisplay); font-weight:800; font-size:26px; letter-spacing:-.02em}
+  .total-chip .lab{font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.08em; margin-top:2px}
+  .total-chip.main .num{color:var(--gold)}
+
+  .controls{margin-top:26px; display:flex; flex-direction:column; gap:14px;
+    position:sticky; top:0; z-index:20; background:linear-gradient(var(--bg) 80%, transparent);
+    padding:14px 0 12px;}
+  .searchbar{position:relative}
+  .searchbar input{
+    width:100%; background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    color:var(--ink); font-size:16px; padding:15px 16px 15px 46px; outline:none;
+    transition:border-color .15s; box-shadow:0 1px 2px rgba(40,40,60,.04);
+  }
+  .searchbar input:focus{border-color:var(--accent)}
+  .searchbar input::placeholder{color:var(--dim2)}
+  .searchbar svg{position:absolute; left:15px; top:50%; transform:translateY(-50%); color:var(--dim)}
+  .searchbar .clearx{position:absolute; right:10px; top:50%; transform:translateY(-50%);
+    background:var(--panel2); border:1px solid var(--line); color:var(--dim); cursor:pointer;
+    border-radius:8px; padding:5px 10px; font-size:13px; display:none}
+  .searchbar .clearx.show{display:block}
+
+  .filters{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+  .chip{
+    background:var(--panel); border:1px solid var(--line); color:var(--dim);
+    border-radius:999px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer;
+    white-space:nowrap; transition:all .15s; display:inline-flex; align-items:center; gap:7px;
+  }
+  .chip:hover{color:var(--ink); border-color:var(--dim2)}
+  .chip.on{background:var(--cc,var(--accent)); border-color:var(--cc,var(--accent)); color:#fff}
+  .chip .dot{width:8px; height:8px; border-radius:50%; background:var(--cc,var(--dim))}
+  .chip.on .dot{background:#fff}
+  .chip .cnt{font-size:11px; opacity:.7}
+
+  .selectrow{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+  select{
+    background:var(--panel); border:1px solid var(--line); color:var(--ink);
+    border-radius:10px; padding:9px 12px; font-size:13px; font-weight:600; cursor:pointer; outline:none;
+  }
+  .meta-line{font-size:13px; color:var(--dim); margin-left:auto}
+  .meta-line b{color:var(--ink)}
+
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:14px; margin-top:8px}
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--r);
+    overflow:hidden; cursor:pointer; transition:transform .12s, border-color .12s, box-shadow .12s;
+    display:flex; flex-direction:column; position:relative; box-shadow:0 1px 2px rgba(40,40,60,.04);
+  }
+  .card:hover{transform:translateY(-3px); border-color:var(--cc,var(--accent)); box-shadow:0 8px 20px rgba(40,40,60,.10)}
+  .card .cover{
+    height:90px; position:relative; display:flex; align-items:flex-end; padding:12px;
+    background:linear-gradient(135deg, var(--cc,#888), color-mix(in srgb, var(--cc,#888) 62%, #fff));
+    background-size:cover; background-position:center;
+    overflow:hidden;
+  }
+  .card .cover::before{
+    content:''; position:absolute; inset:0;
+    background-image:repeating-linear-gradient(0deg, rgba(255,255,255,.14) 0 2px, transparent 2px 4px);
+    opacity:.5; mix-blend-mode:overlay;
+  }
+  .card .cover.has-art::before{
+    background-image:none;
+    background:linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,.72) 100%);
+    opacity:1; mix-blend-mode:normal;
+  }
+  .card .cover .console-tag{
+    position:relative; z-index:1; font-family:var(--fdisplay); font-weight:800;
+    font-size:13px; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.35); letter-spacing:-.01em;
+  }
+  .card .cover .nota-badge{
+    position:absolute; top:10px; right:10px; z-index:1; background:rgba(255,255,255,.92);
+    border:1px solid rgba(0,0,0,.06); border-radius:8px;
+    padding:3px 8px; font-size:12px; font-weight:800; color:var(--gold);
+  }
+  .card .body{padding:12px 13px 14px; flex:1; display:flex; flex-direction:column; gap:6px}
+  .card .name{font-weight:700; font-size:14.5px; line-height:1.25; letter-spacing:-.01em}
+  .card .tags{display:flex; gap:6px; flex-wrap:wrap; margin-top:auto; padding-top:6px}
+  .card .tag{font-size:10.5px; color:var(--dim); background:var(--panel2); border:1px solid var(--line);
+    padding:3px 7px; border-radius:6px; font-weight:600}
+
+  #sentinel{height:40px}
+  .loadmore{text-align:center; padding:24px 0}
+  .loadmore button{background:var(--panel); border:1px solid var(--line); color:var(--ink);
+    border-radius:10px; padding:12px 24px; font-weight:700; cursor:pointer; font-size:14px}
+  .loadmore button:hover{border-color:var(--accent)}
+
+  .empty{text-align:center; padding:70px 20px; color:var(--dim)}
+  .empty .big{font-family:var(--fdisplay); font-size:22px; color:var(--ink); margin-bottom:8px}
+
+  .modal-bg{position:fixed; inset:0; background:rgba(35,38,46,.45); backdrop-filter:blur(6px);
+    z-index:100; display:none; align-items:center; justify-content:center; padding:18px}
+  .modal-bg.show{display:flex}
+  .modal{background:var(--panel); border:1px solid var(--line); border-radius:18px;
+    max-width:540px; width:100%; max-height:88vh; overflow:auto; animation:pop .18s ease; box-shadow:0 20px 60px rgba(40,40,60,.25)}
+  @keyframes pop{from{transform:scale(.96); opacity:0}to{transform:scale(1); opacity:1}}
+  .modal .top{height:120px; position:relative; display:flex; align-items:flex-end; padding:18px;
+    background:linear-gradient(135deg, var(--cc,#888), color-mix(in srgb,var(--cc,#888) 58%, #fff));
+    background-size:cover; background-position:center}
+  .modal .top::before{content:''; position:absolute; inset:0;
+    background-image:repeating-linear-gradient(0deg, rgba(255,255,255,.14) 0 2px, transparent 2px 4px); opacity:.5; mix-blend-mode:overlay}
+  .modal .top.has-art::before{
+    background-image:none;
+    background:linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,.75) 100%);
+    opacity:1; mix-blend-mode:normal;
+  }
+  .modal .top .console-tag{position:relative; z-index:1; font-family:var(--fdisplay); font-weight:800;
+    color:#fff; font-size:15px; text-shadow:0 1px 4px rgba(0,0,0,.35)}
+  .modal .closex{position:absolute; top:14px; right:14px; z-index:2; background:rgba(255,255,255,.92);
+    border:1px solid rgba(0,0,0,.06); color:#23262e; width:34px; height:34px; border-radius:50%;
+    cursor:pointer; font-size:18px; line-height:1}
+  .modal .mbody{padding:20px}
+  .modal h2{font-family:var(--fdisplay); font-weight:800; font-size:24px; line-height:1.1; letter-spacing:-.02em}
+  .modal .info-row{display:flex; flex-wrap:wrap; gap:8px; margin:14px 0}
+  .modal .pill{background:var(--panel2); border:1px solid var(--line); border-radius:8px;
+    padding:6px 11px; font-size:13px; font-weight:600}
+  .modal .pill .k{color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:.06em; display:block}
+  .modal .pill.nota{color:var(--gold)}
+  .modal .resumo{color:#42475a; font-size:15px; line-height:1.6; margin-top:6px}
+  .modal .disp{margin-top:16px; padding-top:14px; border-top:1px solid var(--line); font-size:13px; color:var(--dim)}
+  .modal .disp b{color:var(--ink)}
+
+  .importbar{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px}
+  .btn{background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:10px;
+    padding:10px 16px; font-weight:700; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:8px}
+  .btn:hover{border-color:var(--accent2)}
+  .btn.primary{background:var(--accent2); color:#fff; border-color:var(--accent2)}
+  .toast{position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(200%);
+    background:var(--ink); border:1px solid var(--ink); color:#fff; padding:14px 20px;
+    border-radius:12px; font-size:14px; font-weight:600; z-index:200;
+    transition:transform .3s, opacity .3s, visibility .3s; max-width:90vw;
+    box-shadow:0 8px 24px rgba(40,40,60,.25); opacity:0; visibility:hidden; pointer-events:none}
+  .toast.show{transform:translateX(-50%) translateY(0); opacity:1; visibility:visible}
+  .toast.ok{background:var(--accent2); border-color:var(--accent2)}
+  .toast.err{background:var(--accent); border-color:var(--accent)}
+
+  footer{margin-top:50px; padding-top:24px; border-top:1px solid var(--line); color:var(--dim2); font-size:12px; text-align:center}
+  footer .sig{display:block; margin:0 auto 10px; height:90px; width:auto; max-width:85%;
+    object-fit:contain}
+
+  /* ---- Botão de busca de capa em cada card ---- */
+  .card .cover .findcover{
+    position:absolute; bottom:8px; right:8px; z-index:2;
+    background:rgba(255,255,255,.92); border:1px solid rgba(0,0,0,.06); border-radius:8px;
+    width:26px; height:26px; display:flex; align-items:center; justify-content:center;
+    font-size:13px; text-decoration:none; box-shadow:0 1px 3px rgba(0,0,0,.15);
+    opacity:0; transition:opacity .15s;
+  }
+  .card:hover .cover .findcover{opacity:1}
+
+  @media(max-width:560px){
+    .grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px}
+    .card .cover{height:74px}
+    .total-chip{flex:1; min-width:calc(50% - 5px)}
+    .meta-line{width:100%; margin:4px 0 0}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Coleção pessoal · 8 consoles</div>
+    <h1>MEU ACERVO<br><span class="px">DE GAMES</span></h1>
+    <p class="sub">Tudo o que está nas suas prateleiras e cartões, em um só lugar. Busque por nome, filtre por console e gênero, e abra qualquer jogo para ver os detalhes.</p>
+
+    <div class="totals" id="totals"></div>
+  </header>
+
+  <div class="controls">
+    <div class="searchbar">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="search" type="text" placeholder="Buscar jogo pelo nome..." autocomplete="off">
+      <button class="clearx" id="clearx">limpar</button>
+    </div>
+    <div class="filters" id="consoleFilters"></div>
+    <div class="selectrow">
+      <select id="genreSel"><option value="">Todos os gêneros</option></select>
+      <select id="sortSel">
+        <option value="az">Ordenar: A → Z</option>
+        <option value="za">Ordenar: Z → A</option>
+        <option value="console">Por console (maior acervo)</option>
+        <option value="nota">Maior nota</option>
+        <option value="ano">Mais recente</option>
+        <option value="anoasc">Mais antigo</option>
+      </select>
+      <span class="meta-line"><b id="count">0</b> jogos</span>
+    </div>
+    <div class="importbar">
+      <button class="btn" id="resetBtn" style="display:none">↺ Usar os dados da planilha</button>
+    </div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+  <div id="sentinel"></div>
+  <div class="empty" id="empty" style="display:none">
+    <div class="big">Nenhum jogo encontrado</div>
+    <div>Tente outro nome, console ou gênero.</div>
+  </div>
+
+  <footer>
+    <img src="assinatura.png" alt="Cristiane de Melo Lima" class="sig">
+    <div>Acervo pessoal de games — atualizado por você. Os dados ficam só no seu navegador.</div>
+  </footer>
+</div>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal" id="modal">
+    <div class="top" id="mTop">
+      <button class="closex" id="closeX">×</button>
+      <span class="console-tag" id="mConsole"></span>
+    </div>
+    <div class="mbody">
+      <h2 id="mName"></h2>
+      <div class="info-row" id="mInfo"></div>
+      <p class="resumo" id="mResumo"></p>
+      <div class="disp" id="mDisp"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="games-data.js"></script>
+<script>
+const COLORS = {
+  'Xbox 360':'#52b043', 'PS2':'#2e6fd6', 'PS3':'#7a8df0', 'Atari 2600':'#d8741f',
+  'NES':'#d13b3b', 'Super Nintendo':'#8b5cf6', 'Mega Drive':'#1f9ed6',
+  'Master System':'#e0992a', 'Game Boy':'#7aa844', 'Game Gear':'#c44ec4', 'Outro':'#777'
+};
+const ORDER = ['Xbox 360','PS2','Atari 2600','NES','Super Nintendo','Mega Drive','Master System','Game Boy'];
+
+// dados base -> objetos
+function rowsToGames(rows){
+  return rows.map(r => ({
+    n:r[0], ano:r[1]||0, g:r[2]||'', cd:r[3]||'', nota:r[4]||'', r:r[5]||'', c:r[6]||'Outro', tam:r[7]||''
+  }));
+}
+
+// Lê uma matriz de linhas (de uma planilha) e devolve lista de jogos {n,ano,...}
+// Detecta as colunas pelo cabeçalho de forma flexível.
+function extractGames(rows){
+  const out=[];
+  if(!rows.length) return out;
+  let hi=-1;
+  for(let i=0;i<Math.min(rows.length,8);i++){
+    const low=rows[i].map(c=>String(c).toLowerCase());
+    if(low.some(c=>/(t[íi]tulo|nome).*(jogo)?|^jogo$|^nome$|^t[íi]tulo$/.test(c))){ hi=i; break; }
+  }
+  if(hi<0) hi=0;
+  const head=rows[hi].map(c=>String(c).toLowerCase().trim());
+  const find=(...keys)=>head.findIndex(h=>keys.some(k=>h.includes(k)));
+  const iNome=find('título','titulo','nome','jogo','game');
+  const iAno=find('ano','year');
+  const iGen=find('gênero','genero','genre');
+  let iCons=find('acervo','meu console','console que tenho');
+  if(iCons<0) iCons=find('sistema');
+  if(iCons<0) iCons=head.findIndex(h=>/(console|plataforma)/.test(h) && !/dispon/.test(h));
+  if(iCons<0) iCons=find('console','plataforma');
+  const iDisp=head.findIndex(h=>/dispon/.test(h));
+  const iNota=find('nota','score','rating');
+  const iRes=find('resumo','descri','sinopse','observa');
+  const iTam=head.findIndex(h=>/(tamanho|size)/.test(h));
+  if(iNome<0) return out;
+  for(let i=hi+1;i<rows.length;i++){
+    const row=rows[i]; const nome=String(row[iNome]||'').trim();
+    if(!nome || /^total/i.test(nome) || nome.startsWith('=')) continue;
+    let cons=iCons>=0?normConsole(String(row[iCons]||'').trim()):'';
+    out.push({
+      n:nome,
+      ano:iAno>=0?(parseInt(row[iAno])||0):0,
+      g:iGen>=0?String(row[iGen]||'').trim():'',
+      cd:iDisp>=0?String(row[iDisp]||'').trim():'',
+      nota:iNota>=0?String(row[iNota]||'').replace('None','').trim():'',
+      r:iRes>=0?String(row[iRes]||'').trim():'',
+      c:cons||'Outro',
+      tam:iTam>=0?String(row[iTam]||'').replace('None','').trim():''
+    });
+  }
+  return out;
+}
+
+// Tenta carregar a planilha Excel que fica junto do site (atualização automática).
+// Se conseguir, usa ela como base. Se não (ex: aberto direto do arquivo, sem servidor),
+// usa os dados embutidos no games-data.js.
+const PLANILHA_URL = 'acervo-games.xlsx';
+async function carregarPlanilhaBase(){
+  // espera a biblioteca XLSX estar pronta (até ~5s)
+  let tentativas=0;
+  while(typeof XLSX==='undefined' && tentativas<50){
+    await new Promise(r=>setTimeout(r,100)); tentativas++;
+  }
+  if(typeof XLSX==='undefined') return false;
+  try{
+    const resp = await fetch(PLANILHA_URL, {cache:'no-store'});
+    if(!resp.ok) throw new Error('http '+resp.status);
+    const buf = await resp.arrayBuffer();
+    const wb = XLSX.read(buf, {type:'array'});
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+    const games = extractGames(rows);
+    if(games.length){
+      BASE = games;
+      if(!localStorage.getItem('acervo_games_v1')){
+        GAMES = BASE.slice();
+        buildTotals(); buildConsoleFilters(); buildGenres(); refresh();
+      }
+      return true;
+    }
+  }catch(e){ /* silencioso: mantém o embutido do games-data.js */ }
+  return false;
+}
+
+let BASE = rowsToGames(window.ACERVO_GAMES || []);
+let GAMES = loadSaved() || BASE.slice();
+
+const state = { q:'', console:'', genre:'', sort:'az', shown:0, PAGE:60, filtered:[] };
+
+const $ = s => document.querySelector(s);
+const grid = $('#grid');
+
+function loadSaved(){
+  try{ const s = localStorage.getItem('acervo_games_v1');
+    if(s){ return rowsToGames(JSON.parse(s)); } }catch(e){}
+  return null;
+}
+function saveGames(){
+  try{
+    const rows = GAMES.map(g=>[g.n,g.ano,g.g,g.cd,g.nota,g.r,g.c,g.tam]);
+    localStorage.setItem('acervo_games_v1', JSON.stringify(rows));
+    $('#resetBtn').style.display='inline-flex';
+  }catch(e){ toast('Não consegui salvar no navegador (acervo muito grande).','err'); }
+}
+
+function buildTotals(){
+  const counts={}; GAMES.forEach(g=>counts[g.c]=(counts[g.c]||0)+1);
+  const el=$('#totals'); el.innerHTML='';
+  const main=document.createElement('div'); main.className='total-chip main';
+  main.innerHTML=`<div class="num">${GAMES.length.toLocaleString('pt-BR')}</div><div class="lab">Total de jogos</div>`;
+  el.appendChild(main);
+  // consoles ordenados pela quantidade de jogos (maior -> menor)
+  const ordenados=Object.keys(counts).sort((a,b)=>counts[b]-counts[a] || a.localeCompare(b,'pt-BR'));
+  ordenados.forEach(c=>{
+    if(!counts[c]) return;
+    const d=document.createElement('div'); d.className='total-chip';
+    d.innerHTML=`<div class="num" style="color:${COLORS[c]||'#999'}">${counts[c]}</div><div class="lab">${c}</div>`;
+    el.appendChild(d);
+  });
+}
+
+function buildConsoleFilters(){
+  const counts={}; GAMES.forEach(g=>counts[g.c]=(counts[g.c]||0)+1);
+  const el=$('#consoleFilters'); el.innerHTML='';
+  const all=document.createElement('button'); all.className='chip'+(state.console===''?' on':'');
+  all.innerHTML=`Todos <span class="cnt">${GAMES.length}</span>`;
+  all.onclick=()=>{state.console='';refresh();buildConsoleFilters();}; el.appendChild(all);
+  const ordenados=Object.keys(counts).sort((a,b)=>counts[b]-counts[a] || a.localeCompare(b,'pt-BR'));
+  ordenados.forEach(c=>{
+    if(!counts[c]) return;
+    const b=document.createElement('button');
+    b.className='chip'+(state.console===c?' on':''); b.style.setProperty('--cc',COLORS[c]||'#999');
+    b.innerHTML=`<span class="dot"></span>${c} <span class="cnt">${counts[c]}</span>`;
+    b.onclick=()=>{state.console=(state.console===c?'':c);refresh();buildConsoleFilters();};
+    el.appendChild(b);
+  });
+}
+
+function buildGenres(){
+  const set=new Set();
+  GAMES.forEach(g=>{ (g.g||'').split('/').forEach(x=>{const t=x.trim(); if(t)set.add(t);}); });
+  const sel=$('#genreSel'); const cur=state.genre;
+  sel.innerHTML='<option value="">Todos os gêneros</option>';
+  [...set].sort((a,b)=>a.localeCompare(b,'pt-BR')).forEach(g=>{
+    const o=document.createElement('option'); o.value=g; o.textContent=g; sel.appendChild(o);
+  });
+  sel.value=cur;
+}
+
+function applyFilters(){
+  const q=state.q.toLowerCase().trim();
+  let list=GAMES.filter(g=>{
+    if(state.console && g.c!==state.console) return false;
+    if(state.genre && !(g.g||'').toLowerCase().includes(state.genre.toLowerCase())) return false;
+    if(q && !g.n.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  const num=s=>{const f=parseFloat(s); return isNaN(f)?-1:f;};
+  // ranking de consoles por quantidade de jogos (maior -> menor) no acervo todo
+  const consoleCount={}; GAMES.forEach(g=>consoleCount[g.c]=(consoleCount[g.c]||0)+1);
+  list.sort((a,b)=>{
+    switch(state.sort){
+      case 'console':
+        return (consoleCount[b.c]-consoleCount[a.c]) || a.c.localeCompare(b.c,'pt-BR') || a.n.localeCompare(b.n,'pt-BR');
+      case 'az': return a.n.localeCompare(b.n,'pt-BR');
+      case 'za': return b.n.localeCompare(a.n,'pt-BR');
+      case 'nota': return num(b.nota)-num(a.nota) || a.n.localeCompare(b.n,'pt-BR');
+      case 'ano': return (b.ano||0)-(a.ano||0) || a.n.localeCompare(b.n,'pt-BR');
+      case 'anoasc': return (a.ano||0)-(b.ano||0) || a.n.localeCompare(b.n,'pt-BR');
+    }
+  });
+  state.filtered=list; state.shown=0;
+}
+
+function cardHTML(g){
+  const col=COLORS[g.c]||'#777';
+  const nota=(g.nota && g.nota!=='N/A')?`<span class="nota-badge">★ ${g.nota}</span>`:'';
+  const ano=g.ano?`<span class="tag">${g.ano}</span>`:'';
+  const gen=(g.g||'').split('/')[0].trim();
+  const searchUrl=coverSearchUrl(g.n, g.c);
+  return `<div class="card" style="--cc:${col}" data-i="${g._i}" data-name="${esc(g.n)}">
+    <div class="cover">
+      <span class="console-tag">${g.c}</span>${nota}
+      <a class="findcover" href="${searchUrl}" target="_blank" rel="noopener" title="Buscar capa deste jogo" onclick="event.stopPropagation()">🖼️</a>
+    </div>
+    <div class="body">
+      <div class="name">${esc(g.n)}</div>
+      <div class="tags">${ano}${gen?`<span class="tag">${esc(gen)}</span>`:''}</div>
+    </div></div>`;
+}
+function coverSearchUrl(name, console){
+  const clean = String(name).replace(/[™®©]/g,'').trim();
+  const q = encodeURIComponent(`${clean} ${console} capa jogo cover`);
+  return `https://www.google.com/search?q=${q}&tbm=isch`;
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+function renderMore(){
+  const slice=state.filtered.slice(state.shown, state.shown+state.PAGE);
+  const html=slice.map(g=>cardHTML(g)).join('');
+  grid.insertAdjacentHTML('beforeend', html);
+  state.shown+=slice.length;
+}
+
+function refresh(){
+  // index for modal lookup
+  GAMES.forEach((g,i)=>g._i=i);
+  applyFilters();
+  grid.innerHTML='';
+  $('#count').textContent=state.filtered.length.toLocaleString('pt-BR');
+  $('#empty').style.display=state.filtered.length?'none':'block';
+  renderMore();
+}
+
+// infinite scroll
+const io=new IntersectionObserver(es=>{
+  es.forEach(e=>{ if(e.isIntersecting && state.shown<state.filtered.length) renderMore(); });
+},{rootMargin:'400px'});
+io.observe($('#sentinel'));
+
+// events
+$('#search').addEventListener('input',e=>{
+  state.q=e.target.value; $('#clearx').classList.toggle('show',!!e.target.value); refresh();
+});
+$('#clearx').onclick=()=>{ $('#search').value=''; state.q=''; $('#clearx').classList.remove('show'); refresh(); };
+$('#genreSel').onchange=e=>{ state.genre=e.target.value; refresh(); };
+$('#sortSel').onchange=e=>{ state.sort=e.target.value; refresh(); };
+
+// modal
+grid.addEventListener('click',e=>{
+  const card=e.target.closest('.card'); if(!card) return;
+  openModal(GAMES[+card.dataset.i]);
+});
+function openModal(g){
+  const col=COLORS[g.c]||'#777';
+  const top=$('#mTop');
+  top.style.setProperty('--cc',col);
+  top.style.backgroundImage='';
+  top.classList.remove('has-art');
+  $('#mConsole').textContent=g.c;
+  $('#mName').textContent=g.n;
+  const info=[];
+  if(g.ano) info.push(`<span class="pill"><span class="k">Ano</span>${g.ano}</span>`);
+  if(g.nota && g.nota!=='N/A') info.push(`<span class="pill nota"><span class="k">Nota</span>★ ${g.nota}</span>`);
+  if(g.g) info.push(`<span class="pill"><span class="k">Gênero</span>${esc(g.g)}</span>`);
+  if(g.tam) info.push(`<span class="pill"><span class="k">Tamanho</span>${esc(g.tam)}</span>`);
+  $('#mInfo').innerHTML=info.join('');
+  $('#mResumo').textContent=g.r||'Sem resumo cadastrado para este jogo.';
+  $('#mDisp').innerHTML=g.cd?`Plataformas em que o jogo saiu: <b>${esc(g.cd)}</b>`:'';
+  $('#modalBg').classList.add('show');
+}
+$('#closeX').onclick=()=>$('#modalBg').classList.remove('show');
+$('#modalBg').addEventListener('click',e=>{ if(e.target===$('#modalBg')) $('#modalBg').classList.remove('show'); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') $('#modalBg').classList.remove('show'); });
+
+// (Importação manual removida — os dados vêm da planilha publicada junto do site.)
+
+// Detecta colunas pelo cabeçalho (flexível) e adiciona jogos
+function parseRows(rows){
+  if(!rows.length) return 0;
+  // achar linha de cabeçalho (a que contém algo como "nome"/"título"/"jogo")
+  let hi=-1;
+  for(let i=0;i<Math.min(rows.length,8);i++){
+    const low=rows[i].map(c=>String(c).toLowerCase());
+    if(low.some(c=>/(t[íi]tulo|nome).*(jogo)?|^jogo$|^nome$|^t[íi]tulo$/.test(c))){ hi=i; break; }
+  }
+  if(hi<0) hi=0;
+  const head=rows[hi].map(c=>String(c).toLowerCase().trim());
+  const find=(...keys)=>head.findIndex(h=>keys.some(k=>h.includes(k)));
+  const iNome=find('título','titulo','nome','jogo','game');
+  const iAno=find('ano','year');
+  const iGen=find('gênero','genero','genre');
+  // Console: prioriza a coluna "Acervo Pessoal" (o que você tem). Só usa
+  // "Consoles Disponíveis"/"plataforma" se não houver coluna de acervo,
+  // para não confundir com a lista de plataformas em que o jogo saiu.
+  let iCons=find('acervo','meu console','console que tenho');
+  if(iCons<0) iCons=find('sistema');
+  if(iCons<0){
+    // pega "console"/"plataforma" mas evita "consoles disponíveis"
+    iCons=head.findIndex(h=>/(console|plataforma)/.test(h) && !/dispon/.test(h));
+  }
+  if(iCons<0) iCons=find('console','plataforma');
+  const iNota=find('nota','score','rating');
+  const iRes=find('resumo','descri','sinopse','observa');
+  // Tamanho: evita casar com "tamanho do game (ps3)" se quiser, mas mantém genérico
+  const iTam=head.findIndex(h=>/(tamanho|size)/.test(h));
+  if(iNome<0) return 0;
+
+  const existing=new Set(GAMES.map(g=>g.n.toLowerCase().trim()+'|'+g.c.toLowerCase()));
+  let added=0;
+  for(let i=hi+1;i<rows.length;i++){
+    const row=rows[i]; const nome=String(row[iNome]||'').trim();
+    if(!nome || /^total/i.test(nome) || nome.startsWith('=')) continue;
+    let cons=iCons>=0?String(row[iCons]||'').trim():'';
+    cons=normConsole(cons);
+    const key=nome.toLowerCase()+'|'+cons.toLowerCase();
+    if(existing.has(key)) continue;
+    existing.add(key);
+    GAMES.push({
+      n:nome,
+      ano:iAno>=0?(parseInt(row[iAno])||0):0,
+      g:iGen>=0?String(row[iGen]||'').trim():'',
+      cd:'',
+      nota:iNota>=0?String(row[iNota]||'').trim():'',
+      r:iRes>=0?String(row[iRes]||'').trim():'',
+      c:cons||'Outro',
+      tam:iTam>=0?String(row[iTam]||'').trim():''
+    });
+    added++;
+  }
+  return added;
+}
+function normConsole(s){
+  // remove emojis/marcadores e usa o primeiro console citado
+  const t=String(s).toLowerCase().replace(/[✅✔️\s]+/g,' ').trim();
+  if(/xbox/.test(t)) return 'Xbox 360';
+  if(/playstation 3|\bps3\b/.test(t)) return 'PS3';
+  if(/playstation 2|\bps2\b/.test(t)) return 'PS2';
+  if(/atari/.test(t)) return 'Atari 2600';
+  if(/super\s*nintendo|snes|super\s*nes/.test(t)) return 'Super Nintendo';
+  if(/mega\s*drive|genesis/.test(t)) return 'Mega Drive';
+  if(/master\s*system/.test(t)) return 'Master System';
+  if(/game\s*gear/.test(t)) return 'Game Gear';
+  if(/game\s*boy|\bgba\b|\bgbc\b|\bgb\b/.test(t)) return 'Game Boy';
+  if(/\bnes\b|nintendo entertainment/.test(t)) return 'NES';
+  return String(s).replace(/[✅✔️]/g,'').trim();
+}
+
+$('#resetBtn').onclick=()=>{
+  if(confirm('Isto vai descartar dados antigos salvos neste navegador e usar os dados da planilha. Continuar?')){
+    localStorage.removeItem('acervo_games_v1');
+    GAMES=BASE.slice();
+    buildTotals(); buildConsoleFilters(); buildGenres(); refresh();
+    $('#resetBtn').style.display='none';
+    const fn=document.querySelector('#fnote'); if(fn) fn.remove();
+    toast('Pronto! Mostrando os dados da planilha.','ok');
+  }
+};
+
+let toastT;
+function toast(msg,kind){
+  const t=$('#toast'); t.textContent=msg; t.className='toast show '+(kind||'');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.className='toast '+(kind||''),3200);
+}
+
+
+// init
+buildTotals(); buildConsoleFilters(); buildGenres(); refresh();
+if(localStorage.getItem('acervo_games_v1')){
+  $('#resetBtn').style.display='inline-flex';
+  // Aviso discreto no rodapé (não atrapalha a visualização dos jogos)
+  const fnote=document.createElement('div');
+  fnote.id='fnote';
+  fnote.style.cssText='margin-top:10px;font-size:12px;color:var(--dim)';
+  fnote.innerHTML='📌 Há dados antigos salvos neste navegador. Para ver os dados atuais da planilha, clique em <b>“Usar os dados da planilha”</b> lá em cima.';
+  document.querySelector('footer').appendChild(fnote);
+}
+// Tenta atualizar a partir da planilha Excel publicada junto do site.
+carregarPlanilhaBase();
+</script>
+</body>
+</html>
