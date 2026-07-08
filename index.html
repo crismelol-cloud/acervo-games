@@ -92,10 +92,13 @@
   }
   .card:hover{transform:translateY(-3px); border-color:var(--cc,var(--accent)); box-shadow:0 8px 20px rgba(40,40,60,.10)}
   .card .cover{
-    height:90px; position:relative; display:flex; align-items:flex-end; padding:12px;
+    height:150px; position:relative; display:flex; align-items:flex-end; padding:12px;
     background:linear-gradient(135deg, var(--cc,#888), color-mix(in srgb, var(--cc,#888) 62%, #fff));
     background-size:cover; background-position:center;
     overflow:hidden;
+  }
+  .card .cover .cover-img{
+    position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0;
   }
   .card .cover::before{
     content:''; position:absolute; inset:0;
@@ -104,15 +107,15 @@
   }
   .card .cover.has-art::before{
     background-image:none;
-    background:linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,.72) 100%);
-    opacity:1; mix-blend-mode:normal;
+    background:linear-gradient(180deg, rgba(0,0,0,0) 45%, rgba(0,0,0,.75) 100%);
+    opacity:1; mix-blend-mode:normal; z-index:1;
   }
   .card .cover .console-tag{
-    position:relative; z-index:1; font-family:var(--fdisplay); font-weight:800;
-    font-size:13px; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.35); letter-spacing:-.01em;
+    position:relative; z-index:2; font-family:var(--fdisplay); font-weight:800;
+    font-size:13px; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.55); letter-spacing:-.01em;
   }
   .card .cover .nota-badge{
-    position:absolute; top:10px; right:10px; z-index:1; background:rgba(255,255,255,.92);
+    position:absolute; top:10px; right:10px; z-index:2; background:rgba(255,255,255,.92);
     border:1px solid rgba(0,0,0,.06); border-radius:8px;
     padding:3px 8px; font-size:12px; font-weight:800; color:var(--gold);
   }
@@ -137,18 +140,16 @@
   .modal{background:var(--panel); border:1px solid var(--line); border-radius:18px;
     max-width:540px; width:100%; max-height:88vh; overflow:auto; animation:pop .18s ease; box-shadow:0 20px 60px rgba(40,40,60,.25)}
   @keyframes pop{from{transform:scale(.96); opacity:0}to{transform:scale(1); opacity:1}}
-  .modal .top{height:120px; position:relative; display:flex; align-items:flex-end; padding:18px;
+  .modal .top{height:180px; position:relative; display:flex; align-items:flex-end; padding:18px;
     background:linear-gradient(135deg, var(--cc,#888), color-mix(in srgb,var(--cc,#888) 58%, #fff));
     background-size:cover; background-position:center}
+  .modal .top.has-art::after{content:''; position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.75) 100%); z-index:0}
   .modal .top::before{content:''; position:absolute; inset:0;
     background-image:repeating-linear-gradient(0deg, rgba(255,255,255,.14) 0 2px, transparent 2px 4px); opacity:.5; mix-blend-mode:overlay}
-  .modal .top.has-art::before{
-    background-image:none;
-    background:linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,.75) 100%);
-    opacity:1; mix-blend-mode:normal;
-  }
+  .modal .top.has-art::before{ background:none; opacity:0 }
   .modal .top .console-tag{position:relative; z-index:1; font-family:var(--fdisplay); font-weight:800;
-    color:#fff; font-size:15px; text-shadow:0 1px 4px rgba(0,0,0,.35)}
+    color:#fff; font-size:15px; text-shadow:0 1px 4px rgba(0,0,0,.55)}
   .modal .closex{position:absolute; top:14px; right:14px; z-index:2; background:rgba(255,255,255,.92);
     border:1px solid rgba(0,0,0,.06); color:#23262e; width:34px; height:34px; border-radius:50%;
     cursor:pointer; font-size:18px; line-height:1}
@@ -193,7 +194,7 @@
 
   @media(max-width:560px){
     .grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px}
-    .card .cover{height:74px}
+    .card .cover{height:120px}
     .total-chip{flex:1; min-width:calc(50% - 5px)}
     .meta-line{width:100%; margin:4px 0 0}
   }
@@ -269,12 +270,12 @@ const COLORS = {
   'NES':'#d13b3b', 'Super Nintendo':'#8b5cf6', 'Mega Drive':'#1f9ed6',
   'Master System':'#e0992a', 'Game Boy':'#7aa844', 'Game Gear':'#c44ec4', 'Outro':'#777'
 };
-const ORDER = ['Xbox 360','PS2','Atari 2600','NES','Super Nintendo','Mega Drive','Master System','Game Boy'];
+const ORDER = ['Xbox 360','PS3','PS2','Atari 2600','NES','Super Nintendo','Mega Drive','Master System','Game Boy'];
 
 // dados base -> objetos
 function rowsToGames(rows){
   return rows.map(r => ({
-    n:r[0], ano:r[1]||0, g:r[2]||'', cd:r[3]||'', nota:r[4]||'', r:r[5]||'', c:r[6]||'Outro', tam:r[7]||''
+    n:r[0], ano:r[1]||0, g:r[2]||'', cd:r[3]||'', nota:r[4]||'', r:r[5]||'', c:r[6]||'Outro', tam:r[7]||'', capa:r[8]||''
   }));
 }
 
@@ -302,11 +303,14 @@ function extractGames(rows){
   const iNota=find('nota','score','rating');
   const iRes=find('resumo','descri','sinopse','observa');
   const iTam=head.findIndex(h=>/(tamanho|size)/.test(h));
+  const iCapa=head.findIndex(h=>/(url.*capa|capa.*url)/.test(h));
   if(iNome<0) return out;
   for(let i=hi+1;i<rows.length;i++){
     const row=rows[i]; const nome=String(row[iNome]||'').trim();
     if(!nome || /^total/i.test(nome) || nome.startsWith('=')) continue;
     let cons=iCons>=0?normConsole(String(row[iCons]||'').trim()):'';
+    let capa=iCapa>=0?String(row[iCapa]||'').trim():'';
+    if(capa==='None') capa='';
     out.push({
       n:nome,
       ano:iAno>=0?(parseInt(row[iAno])||0):0,
@@ -315,7 +319,8 @@ function extractGames(rows){
       nota:iNota>=0?String(row[iNota]||'').replace('None','').trim():'',
       r:iRes>=0?String(row[iRes]||'').trim():'',
       c:cons||'Outro',
-      tam:iTam>=0?String(row[iTam]||'').replace('None','').trim():''
+      tam:iTam>=0?String(row[iTam]||'').replace('None','').trim():'',
+      capa:capa
     });
   }
   return out;
@@ -448,8 +453,14 @@ function cardHTML(g){
   const ano=g.ano?`<span class="tag">${g.ano}</span>`:'';
   const gen=(g.g||'').split('/')[0].trim();
   const searchUrl=coverSearchUrl(g.n, g.c);
+  const temCapa=g.capa && /^https?:\/\//.test(g.capa);
+  // se tem capa: imagem de fundo; se falhar ao carregar, cai no gradiente colorido
+  const capaImg=temCapa
+    ? `<img class="cover-img" src="${esc(g.capa)}" alt="" loading="lazy" onerror="this.parentElement.classList.remove('has-art');this.remove()">`
+    : '';
   return `<div class="card" style="--cc:${col}" data-i="${g._i}" data-name="${esc(g.n)}">
-    <div class="cover">
+    <div class="cover${temCapa?' has-art':''}">
+      ${capaImg}
       <span class="console-tag">${g.c}</span>${nota}
       <a class="findcover" href="${searchUrl}" target="_blank" rel="noopener" title="Buscar capa deste jogo" onclick="event.stopPropagation()">🖼️</a>
     </div>
@@ -505,8 +516,14 @@ function openModal(g){
   const col=COLORS[g.c]||'#777';
   const top=$('#mTop');
   top.style.setProperty('--cc',col);
-  top.style.backgroundImage='';
-  top.classList.remove('has-art');
+  const temCapa=g.capa && /^https?:\/\//.test(g.capa);
+  if(temCapa){
+    top.style.backgroundImage=`linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.75) 100%), url("${g.capa}")`;
+    top.classList.add('has-art');
+  } else {
+    top.style.backgroundImage='';
+    top.classList.remove('has-art');
+  }
   $('#mConsole').textContent=g.c;
   $('#mName').textContent=g.n;
   const info=[];
