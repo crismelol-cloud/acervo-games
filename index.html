@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Meu Acervo de Games</title>
 <script src="xlsx.full.min.js"></script>
+<script src="jszip.min.js"></script>
 <style>
   :root{
     --bg:#f4f2ee; --panel:#ffffff; --panel2:#f6f4f0; --line:#e3ded5;
@@ -320,10 +321,78 @@ function extractGames(rows){
       r:iRes>=0?String(row[iRes]||'').trim():'',
       c:cons||'Outro',
       tam:iTam>=0?String(row[iTam]||'').replace('None','').trim():'',
-      capa:capa
+      capa:capa,
+      _row:i
     });
   }
   return out;
+}
+
+// ---- Capas embutidas na planilha (coluna Capa) ----
+// O .xlsx é um pacote zip: as imagens ficam em xl/media/ e o arquivo
+// xl/drawings/drawing1.xml diz em qual linha cada imagem está ancorada.
+let CAPAS_ZIP = null;              // zip aberto da planilha
+const CAPAS_POR_LINHA = new Map(); // linha (0-indexed) -> caminho da imagem no zip
+const CAPA_URL_CACHE = new Map();  // caminho no zip -> ObjectURL já extraído
+
+async function montarCapasEmbutidas(buf){
+  if(typeof JSZip==='undefined') return;
+  try{
+    CAPAS_ZIP = await JSZip.loadAsync(buf);
+    const dz = CAPAS_ZIP;
+    // achar os arquivos de drawing e suas relações
+    const drawingFiles = Object.keys(dz.files).filter(n=>/^xl\/drawings\/drawing\d+\.xml$/.test(n));
+    for(const dpath of drawingFiles){
+      const relPath = dpath.replace(/drawings\//,'drawings/_rels/')+'.rels';
+      const [dxml, rxml] = await Promise.all([
+        dz.file(dpath).async('string'),
+        dz.file(relPath) ? dz.file(relPath).async('string') : Promise.resolve('')
+      ]);
+      // mapa rId -> caminho media
+      const rels = {};
+      rxml.replace(/<Relationship[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"/g, (m,id,tgt)=>{
+        rels[id] = 'xl/'+tgt.replace(/^\.\.\//,''); return m;
+      });
+      // âncoras: <xdr:from>...<xdr:row>N</xdr:row>...</xdr:from> ... r:embed="rIdX"
+      const anchorRe = /<xdr:(?:one|two)CellAnchor>[\s\S]*?<\/xdr:(?:one|two)CellAnchor>/g;
+      let m;
+      while((m = anchorRe.exec(dxml))){
+        const bloco = m[0];
+        const rowM = bloco.match(/<xdr:row>(\d+)<\/xdr:row>/);
+        const embM = bloco.match(/r:embed="([^"]+)"/);
+        if(rowM && embM && rels[embM[1]]){
+          CAPAS_POR_LINHA.set(parseInt(rowM[1]), rels[embM[1]]);
+        }
+      }
+    }
+  }catch(e){ /* sem capas embutidas: segue com URLs */ }
+}
+
+// devolve (async) uma ObjectURL para a capa embutida de um jogo, com cache
+async function capaEmbutidaURL(g){
+  if(!CAPAS_ZIP || g._row===undefined) return null;
+  const mediaPath = CAPAS_POR_LINHA.get(g._row);
+  if(!mediaPath) return null;
+  if(CAPA_URL_CACHE.has(mediaPath)) return CAPA_URL_CACHE.get(mediaPath);
+  const f = CAPAS_ZIP.file(mediaPath);
+  if(!f) return null;
+  const blob = await f.async('blob');
+  const url = URL.createObjectURL(blob);
+  CAPA_URL_CACHE.set(mediaPath, url);
+  return url;
+}
+
+// preenche as imagens dos cards visíveis que têm capa embutida
+function hidratarCapas(){
+  document.querySelectorAll('img.cover-img[data-embed]').forEach(async img=>{
+    img.removeAttribute('data-embed');
+    const i = parseInt(img.getAttribute('data-gi'));
+    const g = GAMES[i]; if(!g) return;
+    const url = await capaEmbutidaURL(g);
+    if(url){ img.src = url; }
+    else if(g.capa && /^https?:\/\//.test(g.capa)){ img.src = g.capa; }
+    else { img.parentElement && img.parentElement.classList.remove('has-art'); img.remove(); }
+  });
 }
 
 // Tenta carregar a planilha Excel que fica junto do site (atualização automática).
@@ -346,6 +415,8 @@ async function carregarPlanilhaBase(){
     const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
     const games = extractGames(rows);
     if(games.length){
+      // extrair as capas embutidas na coluna Capa (imagens dentro do xlsx)
+      await montarCapasEmbutidas(buf);
       BASE = games;
       if(!localStorage.getItem('acervo_games_v1')){
         GAMES = BASE.slice();
@@ -453,11 +524,17 @@ function cardHTML(g){
   const ano=g.ano?`<span class="tag">${g.ano}</span>`:'';
   const gen=(g.g||'').split('/')[0].trim();
   const searchUrl=coverSearchUrl(g.n, g.c);
-  const temCapa=g.capa && /^https?:\/\//.test(g.capa);
-  // se tem capa: imagem de fundo; se falhar ao carregar, cai no gradiente colorido
-  const capaImg=temCapa
-    ? `<img class="cover-img" src="${esc(g.capa)}" alt="" loading="lazy" onerror="this.parentElement.classList.remove('has-art');this.remove()">`
-    : '';
+  // capa: prioridade para a imagem embutida na planilha (coluna Capa);
+  // se não houver, usa a URL da coluna "URL da Capa"; senão, fundo colorido.
+  const temEmbutida = CAPAS_ZIP && g._row!==undefined && CAPAS_POR_LINHA.has(g._row);
+  const temURL = g.capa && /^https?:\/\//.test(g.capa);
+  let capaImg='';
+  if(temEmbutida){
+    capaImg=`<img class="cover-img" alt="" loading="lazy" data-embed="1" data-gi="${g._i}">`;
+  } else if(temURL){
+    capaImg=`<img class="cover-img" src="${esc(g.capa)}" alt="" loading="lazy" onerror="this.parentElement.classList.remove('has-art');this.remove()">`;
+  }
+  const temCapa = temEmbutida || temURL;
   return `<div class="card" style="--cc:${col}" data-i="${g._i}" data-name="${esc(g.n)}">
     <div class="cover${temCapa?' has-art':''}">
       ${capaImg}
@@ -481,6 +558,7 @@ function renderMore(){
   const html=slice.map(g=>cardHTML(g)).join('');
   grid.insertAdjacentHTML('beforeend', html);
   state.shown+=slice.length;
+  hidratarCapas();
 }
 
 function refresh(){
@@ -516,13 +594,20 @@ function openModal(g){
   const col=COLORS[g.c]||'#777';
   const top=$('#mTop');
   top.style.setProperty('--cc',col);
-  const temCapa=g.capa && /^https?:\/\//.test(g.capa);
-  if(temCapa){
+  const temEmbutida = CAPAS_ZIP && g._row!==undefined && CAPAS_POR_LINHA.has(g._row);
+  const temURL = g.capa && /^https?:\/\//.test(g.capa);
+  top.style.backgroundImage='';
+  top.classList.remove('has-art');
+  if(temEmbutida){
+    top.classList.add('has-art');
+    capaEmbutidaURL(g).then(url=>{
+      if(url) top.style.backgroundImage=`linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.75) 100%), url("${url}")`;
+      else if(temURL) top.style.backgroundImage=`linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.75) 100%), url("${g.capa}")`;
+      else top.classList.remove('has-art');
+    });
+  } else if(temURL){
     top.style.backgroundImage=`linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.75) 100%), url("${g.capa}")`;
     top.classList.add('has-art');
-  } else {
-    top.style.backgroundImage='';
-    top.classList.remove('has-art');
   }
   $('#mConsole').textContent=g.c;
   $('#mName').textContent=g.n;
