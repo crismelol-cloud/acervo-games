@@ -141,15 +141,16 @@
   .modal{background:var(--panel); border:1px solid var(--line); border-radius:18px;
     max-width:540px; width:100%; max-height:88vh; overflow:auto; animation:pop .18s ease; box-shadow:0 20px 60px rgba(40,40,60,.25)}
   @keyframes pop{from{transform:scale(.96); opacity:0}to{transform:scale(1); opacity:1}}
-  .modal .top{height:180px; position:relative; display:flex; align-items:flex-end; padding:18px;
+  .modal .top{position:relative; min-height:120px; display:flex; align-items:center; justify-content:center;
     background:linear-gradient(135deg, var(--cc,#888), color-mix(in srgb,var(--cc,#888) 58%, #fff));
-    background-size:cover; background-position:center}
-  .modal .top.has-art::after{content:''; position:absolute; inset:0;
-    background:linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.75) 100%); z-index:0}
+    overflow:hidden; padding:14px 0}
+  .modal .top #mCover{display:block; max-width:100%; max-height:420px; object-fit:contain; position:relative; z-index:1}
+  .modal .top.has-art::after{content:''; position:absolute; left:0; right:0; bottom:0; height:64px;
+    background:linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.55)); z-index:1; pointer-events:none}
   .modal .top::before{content:''; position:absolute; inset:0;
     background-image:repeating-linear-gradient(0deg, rgba(255,255,255,.14) 0 2px, transparent 2px 4px); opacity:.5; mix-blend-mode:overlay}
   .modal .top.has-art::before{ background:none; opacity:0 }
-  .modal .top .console-tag{position:relative; z-index:1; font-family:var(--fdisplay); font-weight:800;
+  .modal .top .console-tag{position:absolute; left:18px; bottom:14px; z-index:2; font-family:var(--fdisplay); font-weight:800;
     color:#fff; font-size:15px; text-shadow:0 1px 4px rgba(0,0,0,.55)}
   .modal .closex{position:absolute; top:14px; right:14px; z-index:2; background:rgba(255,255,255,.92);
     border:1px solid rgba(0,0,0,.06); color:#23262e; width:34px; height:34px; border-radius:50%;
@@ -251,6 +252,7 @@
   <div class="modal" id="modal">
     <div class="top" id="mTop">
       <button class="closex" id="closeX">×</button>
+      <img id="mCover" alt="" style="display:none">
       <span class="console-tag" id="mConsole"></span>
     </div>
     <div class="mbody">
@@ -596,18 +598,16 @@ function openModal(g){
   top.style.setProperty('--cc',col);
   const temEmbutida = CAPAS_ZIP && g._row!==undefined && CAPAS_POR_LINHA.has(g._row);
   const temURL = g.capa && /^https?:\/\//.test(g.capa);
-  top.style.backgroundImage='';
+  const mc=$('#mCover');
+  mc.style.display='none'; mc.removeAttribute('src');
   top.classList.remove('has-art');
+  const mostrarCapa=(u)=>{ if(!u) return;
+    mc.onload=()=>{ mc.style.height = (mc.naturalHeight && mc.naturalHeight<220) ? '240px' : ''; };
+    mc.src=u; mc.style.display='block'; top.classList.add('has-art'); };
   if(temEmbutida){
-    top.classList.add('has-art');
-    capaEmbutidaURL(g).then(url=>{
-      if(url) top.style.backgroundImage=`linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.75) 100%), url("${url}")`;
-      else if(temURL) top.style.backgroundImage=`linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.75) 100%), url("${g.capa}")`;
-      else top.classList.remove('has-art');
-    });
+    capaEmbutidaURL(g).then(url=>{ mostrarCapa(url || (temURL?g.capa:null)); });
   } else if(temURL){
-    top.style.backgroundImage=`linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.75) 100%), url("${g.capa}")`;
-    top.classList.add('has-art');
+    mostrarCapa(g.capa);
   }
   $('#mConsole').textContent=g.c;
   $('#mName').textContent=g.n;
