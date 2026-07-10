@@ -330,61 +330,47 @@ function extractGames(rows){
   return out;
 }
 
-// ---- Capas embutidas na planilha (coluna Capa) ----
-// O .xlsx é um pacote zip: as imagens ficam em xl/media/ e o arquivo
-// xl/drawings/drawing1.xml diz em qual linha cada imagem está ancorada.
-let CAPAS_ZIP = null;              // zip aberto da planilha
-const CAPAS_POR_LINHA = new Map(); // linha (0-indexed) -> caminho da imagem no zip
-const CAPA_URL_CACHE = new Map();  // caminho no zip -> ObjectURL já extraído
+// ---- Capas: pasta compactada capas.zip publicada junto do site ----
+// Cada capa é um arquivo "nome-do-jogo--console.jpg" dentro do capas.zip.
+// Para trocar uma capa, basta substituir o arquivo correspondente no zip.
+let CAPAS_ZIP = null;              // zip aberto do capas.zip
+const CAPA_URL_CACHE = new Map();  // nome do arquivo -> ObjectURL já extraído
 
-async function montarCapasEmbutidas(buf){
-  if(typeof JSZip==='undefined') return;
-  try{
-    CAPAS_ZIP = await JSZip.loadAsync(buf);
-    const dz = CAPAS_ZIP;
-    // achar os arquivos de drawing e suas relações
-    const drawingFiles = Object.keys(dz.files).filter(n=>/^xl\/drawings\/drawing\d+\.xml$/.test(n));
-    for(const dpath of drawingFiles){
-      const relPath = dpath.replace(/drawings\//,'drawings/_rels/')+'.rels';
-      const [dxml, rxml] = await Promise.all([
-        dz.file(dpath).async('string'),
-        dz.file(relPath) ? dz.file(relPath).async('string') : Promise.resolve('')
-      ]);
-      // mapa rId -> caminho media
-      const rels = {};
-      rxml.replace(/<Relationship[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"/g, (m,id,tgt)=>{
-        rels[id] = 'xl/'+tgt.replace(/^\.\.\//,''); return m;
-      });
-      // âncoras: <xdr:from>...<xdr:row>N</xdr:row>...</xdr:from> ... r:embed="rIdX"
-      const anchorRe = /<xdr:(?:one|two)CellAnchor>[\s\S]*?<\/xdr:(?:one|two)CellAnchor>/g;
-      let m;
-      while((m = anchorRe.exec(dxml))){
-        const bloco = m[0];
-        const rowM = bloco.match(/<xdr:row>(\d+)<\/xdr:row>/);
-        const embM = bloco.match(/r:embed="([^"]+)"/);
-        if(rowM && embM && rels[embM[1]]){
-          CAPAS_POR_LINHA.set(parseInt(rowM[1]), rels[embM[1]]);
-        }
-      }
-    }
-  }catch(e){ /* sem capas embutidas: segue com URLs */ }
+// gera o nome de arquivo da capa a partir do nome do jogo e do console
+function slugCapa(g){
+  const s = x => String(x).toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80);
+  return s(g.n)+'--'+s(g.c)+'.jpg';
 }
 
-// devolve (async) uma ObjectURL para a capa embutida de um jogo, com cache
+async function carregarCapasZip(){
+  let t=0;
+  while(typeof JSZip==='undefined' && t<50){ await new Promise(r=>setTimeout(r,100)); t++; }
+  if(typeof JSZip==='undefined') return;
+  try{
+    const resp = await fetch('capas.zip', {cache:'no-store'});
+    if(!resp.ok) return;
+    const buf = await resp.arrayBuffer();
+    CAPAS_ZIP = await JSZip.loadAsync(buf);
+    refresh(); // re-renderiza os cards agora com as capas disponíveis
+  }catch(e){ /* sem capas.zip: segue com URLs/gradiente */ }
+}
+
+// devolve (async) uma ObjectURL para a capa de um jogo, com cache
 async function capaEmbutidaURL(g){
-  if(!CAPAS_ZIP || g._row===undefined) return null;
-  const mediaPath = CAPAS_POR_LINHA.get(g._row);
-  if(!mediaPath) return null;
-  if(CAPA_URL_CACHE.has(mediaPath)) return CAPA_URL_CACHE.get(mediaPath);
-  const f = CAPAS_ZIP.file(mediaPath);
+  if(!CAPAS_ZIP) return null;
+  const fname = slugCapa(g);
+  if(CAPA_URL_CACHE.has(fname)) return CAPA_URL_CACHE.get(fname);
+  const f = CAPAS_ZIP.file(fname);
   if(!f) return null;
   const blob = await f.async('blob');
   const url = URL.createObjectURL(blob);
-  CAPA_URL_CACHE.set(mediaPath, url);
+  CAPA_URL_CACHE.set(fname, url);
   return url;
 }
 
-// preenche as imagens dos cards visíveis que têm capa embutida
+// preenche as imagens dos cards visíveis que têm capa no zip
 function hidratarCapas(){
   document.querySelectorAll('img.cover-img[data-embed]').forEach(async img=>{
     img.removeAttribute('data-embed');
@@ -417,8 +403,6 @@ async function carregarPlanilhaBase(){
     const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
     const games = extractGames(rows);
     if(games.length){
-      // extrair as capas embutidas na coluna Capa (imagens dentro do xlsx)
-      await montarCapasEmbutidas(buf);
       BASE = games;
       if(!localStorage.getItem('acervo_games_v1')){
         GAMES = BASE.slice();
@@ -526,9 +510,9 @@ function cardHTML(g){
   const ano=g.ano?`<span class="tag">${g.ano}</span>`:'';
   const gen=(g.g||'').split('/')[0].trim();
   const searchUrl=coverSearchUrl(g.n, g.c);
-  // capa: prioridade para a imagem embutida na planilha (coluna Capa);
+  // capa: prioridade para o arquivo no capas.zip;
   // se não houver, usa a URL da coluna "URL da Capa"; senão, fundo colorido.
-  const temEmbutida = CAPAS_ZIP && g._row!==undefined && CAPAS_POR_LINHA.has(g._row);
+  const temEmbutida = CAPAS_ZIP && !!CAPAS_ZIP.file(slugCapa(g));
   const temURL = g.capa && /^https?:\/\//.test(g.capa);
   let capaImg='';
   if(temEmbutida){
@@ -596,7 +580,7 @@ function openModal(g){
   const col=COLORS[g.c]||'#777';
   const top=$('#mTop');
   top.style.setProperty('--cc',col);
-  const temEmbutida = CAPAS_ZIP && g._row!==undefined && CAPAS_POR_LINHA.has(g._row);
+  const temEmbutida = CAPAS_ZIP && !!CAPAS_ZIP.file(slugCapa(g));
   const temURL = g.capa && /^https?:\/\//.test(g.capa);
   const mc=$('#mCover');
   mc.style.display='none'; mc.removeAttribute('src');
@@ -729,6 +713,8 @@ if(localStorage.getItem('acervo_games_v1')){
 }
 // Tenta atualizar a partir da planilha Excel publicada junto do site.
 carregarPlanilhaBase();
+// Carrega o pacote de capas (capas.zip) publicado junto do site.
+carregarCapasZip();
 </script>
 </body>
 </html>
