@@ -269,11 +269,11 @@
 <script src="games-data.js"></script>
 <script>
 const COLORS = {
-  'Xbox 360':'#52b043', 'PS2':'#2e6fd6', 'PS3':'#7a8df0', 'PS1':'#6e7585', 'Atari 2600':'#d8741f',
+  'Xbox 360':'#52b043', 'Xbox Series S':'#107c10', 'PS2':'#2e6fd6', 'PS3':'#7a8df0', 'PS1':'#6e7585', 'Atari 2600':'#d8741f',
   'NES':'#d13b3b', 'Super Nintendo':'#8b5cf6', 'Mega Drive':'#1f9ed6',
   'Master System':'#e0992a', 'Game Boy':'#7aa844', 'Game Gear':'#c44ec4', 'Outro':'#777'
 };
-const ORDER = ['Xbox 360','PS3','PS2','PS1','Atari 2600','NES','Super Nintendo','Mega Drive','Master System','Game Boy'];
+const ORDER = ['Xbox 360','Xbox Series S','PS3','PS2','PS1','Atari 2600','NES','Super Nintendo','Mega Drive','Master System','Game Boy'];
 
 // dados base -> objetos
 function rowsToGames(rows){
@@ -669,6 +669,7 @@ function parseRows(rows){
 function normConsole(s){
   // remove emojis/marcadores e usa o primeiro console citado
   const t=String(s).toLowerCase().replace(/[✅✔️\s]+/g,' ').trim();
+  if(/xbox\s*series/.test(t)) return 'Xbox Series S';
   if(/xbox/.test(t)) return 'Xbox 360';
   if(/playstation 3|\bps3\b/.test(t)) return 'PS3';
   if(/playstation 2|\bps2\b/.test(t)) return 'PS2';
