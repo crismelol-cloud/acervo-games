@@ -310,7 +310,7 @@ function extractGames(rows){
   if(iNome<0) return out;
   for(let i=hi+1;i<rows.length;i++){
     const row=rows[i]; const nome=String(row[iNome]||'').trim();
-    if(!nome || /^total/i.test(nome) || nome.startsWith('=')) continue;
+    if(!nome || /^total$|^total\s*(de|:)/i.test(nome.trim()) || nome.startsWith('=')) continue;
     let cons=iCons>=0?normConsole(String(row[iCons]||'').trim()):'';
     let capa=iCapa>=0?String(row[iCapa]||'').trim():'';
     if(capa==='None') capa='';
@@ -646,7 +646,7 @@ function parseRows(rows){
   let added=0;
   for(let i=hi+1;i<rows.length;i++){
     const row=rows[i]; const nome=String(row[iNome]||'').trim();
-    if(!nome || /^total/i.test(nome) || nome.startsWith('=')) continue;
+    if(!nome || /^total$|^total\s*(de|:)/i.test(nome.trim()) || nome.startsWith('=')) continue;
     let cons=iCons>=0?String(row[iCons]||'').trim():'';
     cons=normConsole(cons);
     const key=nome.toLowerCase()+'|'+cons.toLowerCase();
